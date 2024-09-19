@@ -1,0 +1,8 @@
+id,Realm,Kingdom,Phylum,Class,Order,Family,gc_delta,score,tie_score,n_ties
+sort_12379_1_8_14452,Riboviria,Orthornavirae,Negarnaviricota,Insthoviricetes,Articulavirales,Orthomyxoviridae,0.0441,1.0,1.0,0
+sort_12607_4_1_29274,Riboviria,Orthornavirae,Pisuviricota,Pisoniviricetes,Nidovirales,Coronaviridae,0.0067,0.923,1.0,2
+sort_14239_1_1_996,,,,,,Alphasatellitidae,0.001,1.0,0.143,38
+sort_5207_1_1_7961,Monodnaviria,Shotokuvirae,Cossaviricota,Papovaviricetes,Zurhausenvirales,Papillomaviridae,0.0883,1.0,1.0,2
+sort_608_1_1_41268,Duplodnaviria,Heunggongvirae,Uroviricota,Caudoviricetes,,Autographiviridae,0.003,0.882,1.0,0
+sort_6402_1_1_2778,Monodnaviria,Shotokuvirae,Cressdnaviricota,Repensiviricetes,Geplafuvirales,Geminiviridae,0.0015,1.0,1.0,18
+sort_7279_1_10_17910,Riboviria,Orthornavirae,Duplornaviricota,Resentoviricetes,Reovirales,Sedoreoviridae,0.0175,1.0,1.0,4
