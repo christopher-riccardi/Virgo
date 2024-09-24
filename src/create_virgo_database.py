@@ -172,14 +172,6 @@ def m8_reader(m8_file):
     m8 = m8[['query', 'target']]
     return m8
 
-#########################
-## Quite procedural
-#########################
-args = parse_arguments()
-
-params = {}
-params['tmp_dir'] = os.path.join(args.output, 'tmp_dir')
-
 def check_input_paths(paths):
     """
     Check if the given input paths (files or directories) exist.
@@ -200,6 +192,15 @@ def check_input_paths(paths):
     else:
         print("All input files or directories exist.")
         return True
+    
+#########################
+## Quite procedural
+#########################
+args = parse_arguments()
+
+params = {}
+params['tmp_dir'] = os.path.join(args.output, 'tmp_dir')
+
 check_input_paths([args.sql, args.taxonomy_table, args.virus_markers])
 
 if CreateDirectory(args.output) == 1:
