@@ -240,6 +240,27 @@ def get_tie_score(ties):
         return 1.0
     return 1 / len( set( [x.split(';')[5] for x in ties] ) )
 
+def check_input_paths(paths):
+    """
+    Check if the given input paths (files or directories) exist.
+
+    :param paths: List of paths (files or directories) provided by the user
+    :return: Boolean (True if all paths exist, False if any path is missing)
+    """
+    missing_paths = []
+    
+    for path in paths:
+        if not (os.path.isfile(path) or os.path.isdir(path)):
+            missing_paths.append(path)
+
+    if missing_paths:
+        # Print the error message and stop the script
+        print(f"Error: The following path(s) do not exist: {', '.join(missing_paths)}")
+        sys.exit(1)  # Exit with an error code
+    else:
+        print("All input files or directories exist.")
+        return True
+
 if __name__=='__main__':
     args = parse_arguments()
     sys.stdout.write(f'This is Virgo v{__version__}\n')
@@ -274,6 +295,8 @@ if __name__=='__main__':
           "
     )
     
+    check_input_paths([args.input, args.data])
+
     logging.info('[0]')
     if CreateDirectory(args.output) == 1:
         sys.exit(1)

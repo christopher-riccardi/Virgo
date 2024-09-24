@@ -137,12 +137,21 @@ def run_mmseqs(input_fasta, virus_specific_markers, mmseqs_output, tmp_dir, num_
         '--cov-mode', '1',
         '--threads', str(num_threads)
     ]
-    result = subprocess.run(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True
-    )
+    try:
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        if result.returncode == 0:
+            return 0
+        else:
+            logging.info("Error running MMSeqs2:")
+            logging.info(result.stderr)
+    except Exception as e:
+        logging.info(f"An error occurred: {e}.")
+    return 1
 
 def m8_reader(m8_file):
     m8 = pd.read_csv(m8_file,
@@ -170,6 +179,28 @@ args = parse_arguments()
 
 params = {}
 params['tmp_dir'] = os.path.join(args.output, 'tmp_dir')
+
+def check_input_paths(paths):
+    """
+    Check if the given input paths (files or directories) exist.
+
+    :param paths: List of paths (files or directories) provided by the user
+    :return: Boolean (True if all paths exist, False if any path is missing)
+    """
+    missing_paths = []
+    
+    for path in paths:
+        if not (os.path.isfile(path) or os.path.isdir(path)):
+            missing_paths.append(path)
+
+    if missing_paths:
+        # Print the error message and stop the script
+        print(f"Error: The following path(s) do not exist: {', '.join(missing_paths)}")
+        sys.exit(1)  # Exit with an error code
+    else:
+        print("All input files or directories exist.")
+        return True
+check_input_paths([args.sql, args.taxonomy_table, args.virus_markers])
 
 if CreateDirectory(args.output) == 1:
     sys.exit(1)
@@ -244,4 +275,3 @@ shutil.rmtree(params['tmp_dir'])
 for elem in glob.glob(args.virus_markers + '/*'):
     shutil.copy(elem, os.path.join(args.output, os.path.basename(elem)))
 logging.info('Execution finished')
-

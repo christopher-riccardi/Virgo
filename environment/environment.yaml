@@ -1,14 +1,17 @@
 name: virgo
 channels:
-  - bioconda
+  - anaconda
   - conda-forge
+  - bioconda
+  - defaults
 dependencies:
   - _libgcc_mutex=0.1=conda_forge
   - _openmp_mutex=4.5=2_gnu
   - aria2=1.37.0=h347180d_1
   - bzip2=1.0.8=h4bc722e_7
   - c-ares=1.32.3=h4bc722e_0
-  - ca-certificates=2024.7.4=hbcca054_0
+  - ca-certificates=2024.8.30=hbcca054_0
+  - et_xmlfile=1.1.0=pyhd8ed1ab_0
   - gawk=5.3.0=ha916aea_0
   - gettext=0.22.5=he02047a_3
   - gettext-tools=0.22.5=he02047a_3
@@ -44,7 +47,8 @@ dependencies:
   - mpfr=4.2.1=h38ae2d0_2
   - ncurses=6.5=h59595ed_0
   - numpy=2.0.0=py312h22e1c76_0
-  - openssl=3.3.1=h4bc722e_2
+  - openpyxl=3.1.5=py312h5eee18b_0
+  - openssl=3.3.1=hb9d3cd8_3
   - pandas=2.2.2=py312h1d6d2e6_1
   - perl=5.32.1=7_hd590300_perl5
   - pip=24.2=pyhd8ed1ab_0

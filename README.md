@@ -11,12 +11,19 @@
 
 ## Table of Contents
 
-- [Features](#features)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Example](#example)
-- [Building the Database](#building-the-database)
-- [Troubleshooting](#troubleshooting)
+- [Virgo](#virgo)
+    - [Overview](#overview)
+  - [](#)
+  - [Table of Contents](#table-of-contents)
+  - [Features](#features)
+  - [Installation](#installation)
+    - [Usage](#usage)
+      - [Input](#input)
+      - [Output](#output)
+      - [Data](#data)
+    - [Example](#example)
+    - [Building the Database](#building-the-database)
+    - [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -43,6 +50,7 @@ To set up the environment for this project, you can use **conda** and the provid
 3. Create and activate the environment using the `environment.yaml` file:
 
    ```bash
+   cd environment
    conda env create -f environment.yaml
    conda activate virgo
    ```
@@ -135,4 +143,3 @@ If you found a bug or mistake in this project, we would like to know about it. B
 <summary>Contact information</summary>
 For inquiries, contact us at fsun@usc.edu
 </details>
-
