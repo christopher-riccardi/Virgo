@@ -187,10 +187,10 @@ def check_input_paths(paths):
 
     if missing_paths:
         # Print the error message and stop the script
-        print(f"Error: The following path(s) do not exist: {', '.join(missing_paths)}")
+        logging.error(f"The following path(s) do not exist: {', '.join(missing_paths)}")
         sys.exit(1)  # Exit with an error code
     else:
-        print("All input files or directories exist.")
+        logging.info("All input files or directories exist.")
         return True
     
 #########################
