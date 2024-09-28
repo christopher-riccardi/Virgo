@@ -13,7 +13,6 @@
 
 - [Virgo](#virgo)
     - [Overview](#overview)
-  - [](#)
   - [Table of Contents](#table-of-contents)
   - [Features](#features)
   - [Installation](#installation)
