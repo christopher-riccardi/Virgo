@@ -82,6 +82,7 @@ DATA is the database needed by Virgo to perform classification.
 
 > [!NOTE]
 > **An up-to-date version is always found [here](https://figshare.com/ndownloader/files/49237189).**  
+> Only for paper review purposes, we make VMR MSL #39 version 1 still available through the link above. Upon publication, the latest VMR version will be linked.
 
 Optionally, you may build your own following the instructions listed [here](#building-the-database)  (slower)
 
