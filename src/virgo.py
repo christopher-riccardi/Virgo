@@ -1,5 +1,6 @@
 __version__="1.0.0"
 __citation__="TBD"
+
 """
 Copyright (c) 2024 Christopher Riccardi, Yuqiu Wang
 
@@ -32,10 +33,18 @@ import logging
 import sys, os
 import pickle
 import shutil
+import json
 import time
 import glob
 
+## I'm using logging module, but also defining a plain for simpler user text at the beginning and end
 logging.basicConfig(format='%(asctime)s - %(funcName)s:%(lineno)d [%(levelname)s] %(message)s', datefmt='%d-%b-%y %H:%M:%S', level=logging.INFO)
+plain_logger = logging.getLogger("plain")
+plain_logger.setLevel(logging.INFO)
+plain_handler = logging.StreamHandler()
+plain_handler.setFormatter(logging.Formatter("%(message)s"))
+plain_logger.addHandler(plain_handler)
+plain_logger.propagate = False
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description='')
@@ -45,12 +54,20 @@ def parse_arguments():
                         help='Folder with input query fasta files')
     parser.add_argument('-o', '--output', type=str, required=True,
                         help='Name of output directory that will contain Virgo results')
-    parser.add_argument('-t', '--num_threads', type=int, required=False,
+    parser.add_argument('-t', '--num_threads', type=int, required=False, default=os.cpu_count(),
                         help='Number of threads to use for multiprocessing')
-    parser.add_argument('--with_replacement', action='store_true',
-                        help='Skip database entries that have the same name as the queries. Useful for Leave-One-Out studies.')
-    parser.add_argument('--no_gc', action='store_true',
-                        help='Do not use G+C content to break ties. Default is to use it.')
+    parser.add_argument('--with-replacement', action='store_true',
+                        help='Skip one database entry identical to query. Useful for Leave-One-Out studies')
+    parser.add_argument('--no-gc', action='store_true',
+                        help='Do not use G+C content to break ties. Default is to use it')
+    parser.add_argument('--min_score', type=float, required=False, default=0.05,
+                        help='Show only viruses with bidirectional subsethood score > value. Must be in range (0, 1]. Default: 0.05')
+    parser.add_argument('--drop-ties', action='store_true',
+                        help='Do not include viruses with ties in the final result table. Default is to include them')
+    parser.add_argument('--virus-by-virus', action='store_true',
+                        help='Write JSON file with all query-db comparisons that yield a score > –-min_score. Default is to not write it')
+    # parser.add_argument('--conf_thresh', type=float, required=False, default=0.61,
+    #                     help='Queries with a confidence threshold < value do not pass confidence filter. Must be in range (0, 1]. Default: 0.61')
     parser.add_argument('--version', action='version', version=f'{__version__}')
     args = parser.parse_args()
     return args
@@ -155,6 +172,7 @@ def run_mmseqs(input_fasta):
     return result
 
 def m8_reader(m8_file):
+    # This is a custom function for reading .m8 files
     m8 = pd.read_csv(m8_file,
                     sep='\t',
                     header=None,
@@ -174,103 +192,218 @@ def m8_reader(m8_file):
     return m8
 
 def find_one_virus_replacement(virus_id):
-    chosen, ties = "nan;nan;nan;nan;nan;nan;nan;nan;nan", []
-    s = 0
+    ## General parameters
+    use_gc = 1 - params['no_gc']
+
+    ## Query information
     query_seq = queries[virus_id]
-    use_gc = 1 - args.no_gc
     query_gc = gc_map[virus_id]
-    
-    for _, representation in database.items():
-        if _ == virus_id:
-            continue
-        
-        score = bidirectional_subsethood(query_seq, representation[0])
+    query_vORFs_count = len(query_seq)
+    if not query_vORFs_count:
+        return None
+
+    ## Scores information; {virus_id : score}
+    scores_dict = {}
+
+    ## Main loop, the costliest thing to run
+    skipped = 0
+    for key, value in database.items():
+        if query_seq == value[0] and skipped == 0:
+          skipped += 1
+          continue # skip identity once
+        score = bidirectional_subsethood(query_seq, value[0])
         if 0 == score: continue
-        if score > s:
-            s = score
-            ties = [representation[1]]
-            chosen = representation[1]
-        elif score == s:
-            ties.append(representation[1])
-    if s == 0:
-        return virus_id, None, 0, 0
-    if use_gc and len(ties) > 1:
-        chosen = min(ties, key=lambda elem: abs(query_gc - float(elem.split(';')[-1])))
-    gc_diff = f"{abs(query_gc - float(chosen.split(';')[-1])):4.4f}"
-    chosen = chosen.split(';')[:-3] ##
-    chosen.append(gc_diff)
-    chosen = ';'.join(chosen)
-    return virus_id, chosen, s, ties
+        scores_dict[key] = score
+
+    ## At this stage check sanity
+    if not scores_dict:
+        ## Must return
+        return None
+
+    ## Instead, at this point write files if comparisons are requested
+    if params['virus_by_virus']:
+        temporary_fname = os.path.join(params['tmp_dir'], f'{virus_id.replace("/", "").replace("\\", "").replace(" ", "")}.part')       
+        taxonomy_scores_dict = {virus_id:{}}
+        for key, value in scores_dict.items():
+                database_taxon_from_id = ';'.join(database[key][1].split(';')[:6])
+                if not taxonomy_scores_dict[virus_id].get(database_taxon_from_id, None):
+                    taxonomy_scores_dict[virus_id][database_taxon_from_id] = []
+                taxonomy_scores_dict[virus_id][database_taxon_from_id].append(value)
+        with open(temporary_fname, 'w') as hndl:
+            json.dump(taxonomy_scores_dict, hndl)
+
+    max_score = max(scores_dict.values())
+    if max_score <= params['min_score']:
+        return None
+
+    ## Store the keys (database virus ids) of best-scoring
+    max_scoring_viruses = [key for key, value in scores_dict.items() if value==max_score]
+    ## Number of viruses in the database that scored max
+    database_max_scoring = len(max_scoring_viruses)
+    ## Pick first candidate for now. If G+C is enabled, it gets updated later
+    best_by_gc_and_score = max_scoring_viruses[0]
+    gc_delta = abs(query_gc - float(database[best_by_gc_and_score][1].split(';')[-1]))
+
+    ## Handle ties
+    if database_max_scoring - 1:
+        if use_gc:
+            for max_scoring_virus in max_scoring_viruses:
+                current_gc_diff = abs(query_gc - float(database[max_scoring_virus][1].split(';')[-1]))
+                if current_gc_diff < gc_delta:
+                    gc_delta = current_gc_diff
+                    best_by_gc_and_score = max_scoring_virus
+    
+    ## Now, relative to the chosen reference from which to borrow taxonomy
+    representation, information = database[best_by_gc_and_score]
+    refnc_vORFs_count = len(representation)
+    #refnc_vORFs_count = database_vORFs_content[best_by_gc_and_score]
+    taxonomy = ';'.join(information.split(';')[:6])
+
+    ## Relative to ties and tie scores
+    number_of_ties = len(set([';'.join(database[x][1].split(';')[:6]) for x in max_scoring_viruses]))
+    if number_of_ties == 0: # Always > 0
+        logging.error('Number of ties equal to zero, something could be wrong in the database or database parsing. Has anything changed?')
+        return None
+    tie_score = 1 / number_of_ties
+
+    ## Filter by tie_score if requester by user
+    if params['drop_ties'] and tie_score < 1:
+        return None
+
+    ## Set pass confidence filter according to user input
+    pass_confidence_filter = 1
+    if (query_vORFs_count < 2) or (refnc_vORFs_count < 2):
+        if (tie_score < 1) and (score < 0.8):
+            pass_confidence_filter = 0
+
+    return [virus_id, 
+        taxonomy,
+        gc_delta,
+        max_score,
+        tie_score,
+        number_of_ties,
+        query_vORFs_count,
+        refnc_vORFs_count,
+        pass_confidence_filter]
 
 def find_one_virus(virus_id):
-    chosen, ties = "nan;nan;nan;nan;nan;nan;nan;nan;nan", []
-    s = 0
-    query_seq = queries[virus_id]
-    use_gc = 1 - args.no_gc
-    query_gc = gc_map[virus_id]
-    
-    for _, representation in database.items():
-        score = bidirectional_subsethood(query_seq, representation[0])
-        if 0 == score: continue
-        if score > s:
-            s = score
-            ties = [representation[1]]
-            chosen = representation[1]
-        elif score == s:
-            ties.append(representation[1])
-    if s == 0:
-        return virus_id, None, 0, 0
-    if use_gc and len(ties) > 1:
-        chosen = min(ties, key=lambda elem: abs(query_gc - float(elem.split(';')[-1])))
-    gc_diff = f"{abs(query_gc - float(chosen.split(';')[-1])):4.4f}"
-    chosen = chosen.split(';')[:-3] ##
-    chosen.append(gc_diff)
-    chosen = ';'.join(chosen)
-    return virus_id, chosen, s, ties
+    ## General parameters
+    use_gc = 1 - params['no_gc']
 
-def get_tie_score(ties):
-    """
-    We wanted to create a straightforward way to determine the uniqueness of a virus family given the observed score.
-    One family: tie score = 1
-    Two families: tie score = 0.5
-    and so on.
-    """
-    n = len(ties)
-    if n < 2:
-        return 1.0
-    return 1 / len( set( [x.split(';')[5] for x in ties] ) )
+    ## Query information
+    query_seq = queries[virus_id]
+    query_gc = gc_map[virus_id]
+    query_vORFs_count = len(query_seq)
+    if not query_vORFs_count:
+        return None
+
+    ## Scores information; {virus_id : score}
+    scores_dict = {}
+
+    ## Main loop, the costliest thing to run
+    skipped = 0
+    for key, value in database.items():
+        score = bidirectional_subsethood(query_seq, value[0])
+        if 0 == score: continue
+        scores_dict[key] = score
+
+    ## At this stage check sanity
+    if not scores_dict:
+        ## Must return
+        return None
+
+    ## Instead, at this point write files if comparisons are requested
+    if params['virus_by_virus']:
+        temporary_fname = os.path.join(params['tmp_dir'], f'{virus_id.replace("/", "").replace("\\", "").replace(" ", "")}.part')       
+        taxonomy_scores_dict = {virus_id:{}}
+        for key, value in scores_dict.items():
+                database_taxon_from_id = ';'.join(database[key][1].split(';')[:6])
+                if not taxonomy_scores_dict[virus_id].get(database_taxon_from_id, None):
+                    taxonomy_scores_dict[virus_id][database_taxon_from_id] = []
+                taxonomy_scores_dict[virus_id][database_taxon_from_id].append(value)
+        with open(temporary_fname, 'w') as hndl:
+            json.dump(taxonomy_scores_dict, hndl)
+
+    max_score = max(scores_dict.values())
+    if max_score <= params['min_score']:
+        return None
+
+    ## Store the keys (database virus ids) of best-scoring
+    max_scoring_viruses = [key for key, value in scores_dict.items() if value==max_score]
+    ## Number of viruses in the database that scored max
+    database_max_scoring = len(max_scoring_viruses)
+    ## Pick first candidate for now. If G+C is enabled, it gets updated later
+    best_by_gc_and_score = max_scoring_viruses[0]
+    gc_delta = abs(query_gc - float(database[best_by_gc_and_score][1].split(';')[-1]))
+
+    ## Handle ties
+    if database_max_scoring - 1:
+        if use_gc:
+            for max_scoring_virus in max_scoring_viruses:
+                current_gc_diff = abs(query_gc - float(database[max_scoring_virus][1].split(';')[-1]))
+                if current_gc_diff < gc_delta:
+                    gc_delta = current_gc_diff
+                    best_by_gc_and_score = max_scoring_virus
+    
+    ## Now, relative to the chosen reference from which to borrow taxonomy
+    representation, information = database[best_by_gc_and_score]
+    refnc_vORFs_count = len(representation)
+    #refnc_vORFs_count = database_vORFs_content[best_by_gc_and_score]
+    taxonomy = ';'.join(information.split(';')[:6])
+
+    ## Relative to ties and tie scores
+    number_of_ties = len(set([';'.join(database[x][1].split(';')[:6]) for x in max_scoring_viruses]))
+    if number_of_ties == 0: # Always > 0
+        logging.error('Number of ties equal to zero, something could be wrong in the database or database parsing. Has anything changed?')
+        return None
+    tie_score = 1 / number_of_ties
+
+    ## Filter by tie_score if requester by user
+    if params['drop_ties'] and tie_score < 1:
+        return None
+
+    ## Set pass confidence filter according to user input
+    pass_confidence_filter = 1
+    if (query_vORFs_count < 2) or (refnc_vORFs_count < 2):
+        if (tie_score < 1) and (score < 0.8):
+            pass_confidence_filter = 0
+
+    return [virus_id, 
+        taxonomy,
+        gc_delta,
+        max_score,
+        tie_score,
+        number_of_ties,
+        query_vORFs_count,
+        refnc_vORFs_count,
+        pass_confidence_filter]
 
 def check_input_paths(paths):
-    """
-    Check if the given input paths (files or directories) exist.
-
-    :param paths: List of paths (files or directories) provided by the user
-    :return: Boolean (True if all paths exist, False if any path is missing)
-    """
     missing_paths = []
-    
     for path in paths:
         if not (os.path.isfile(path) or os.path.isdir(path)):
             missing_paths.append(path)
-
     if missing_paths:
-        # Print the error message and stop the script
         logging.error(f"The following path(s) do not exist: {', '.join(missing_paths)}")
-        sys.exit(1)  # Exit with an error code
+        sys.exit(1)
     else:
-        logging.info("All input files or directories exist.")
         return True
 
 if __name__=='__main__':
     args = parse_arguments()
-    sys.stdout.write(f'This is Virgo v{__version__}\n')
+    plain_logger.info(f'This is Virgo v{__version__}\n')
+    
 
     params = {}
     params['input_dir'] = args.input
     params['output_dir'] = args.output
     params['database_dir'] = args.data
     params['with_replacement'] = args.with_replacement
-    params['with_gc'] = 1 - args.no_gc
+    params['no_gc'] = args.no_gc
+    params['min_score'] = args.min_score
+    # params['conf_thresh'] = args.conf_thresh
+    params['drop_ties'] = args.drop_ties
+    params['virus_by_virus'] = args.virus_by_virus
     params['virus_specific_markers'] = os.path.join(params['database_dir'], 'DB')
     params['database_file'] = os.path.join(params['database_dir'], 'database.pkl')
     params['tmp_dir'] = os.path.join(params['output_dir'], 'tmp_dir')
@@ -278,6 +411,7 @@ if __name__=='__main__':
     params['num_threads'] = args.num_threads
     params['merged_orfs'] = os.path.join(params['tmp_dir'], 'merged.faa')
     params['results_file'] = os.path.join(params['output_dir'], 'results.csv')
+    params['virus_by_virus_file'] = os.path.join(params['output_dir'], 'virus_by_virus.json')
 
     logging.info(f"Parameters set:\n\
           input_dir: {params['input_dir']},\n\
@@ -286,19 +420,32 @@ if __name__=='__main__':
           virus_specific_markers: {params['virus_specific_markers']},\n\
           database_file: {params['database_file']},\n\
           replacement: {params['with_replacement']},\n\
-          with_gc: {params['with_gc']},\n\
+          no_gc: {params['no_gc']},\n\
+          min_score: {params['min_score']},\n\
+          drop_ties: {params['drop_ties']},\n\
+          virus_by_virus: {params['virus_by_virus']},\n\
           tmp_dir: {params['tmp_dir']},\n\
           mmseqs_output: {params['mmseqs_output']},\n\
           num_threads: {params['num_threads']},\n\
           merged_orfs: {params['merged_orfs']},\n\
           results_file: {params['results_file']}\n\
+          virus_by_virus_file: {params['virus_by_virus_file']}\n\
           "
     )
     
-    check_input_paths([args.input, args.data])
+    ## Checking user input
+    check_input_paths([params['input_dir'], params['database_dir']])
+
+    if 1 <= params['min_score'] < 0:
+        logging.error('--min_score command line argument must be in range (0, 1]')
+        sys.exit(1)
+
+    # if 1 <= params['conf_thresh'] < 0:
+    #     logging.error('--conf_thresh command line argument must be in range (0, 1]')
+    #     sys.exit(1)
 
     logging.info('[0]')
-    if CreateDirectory(args.output) == 1:
+    if CreateDirectory(params['output_dir']) == 1:
         sys.exit(1)
 
     if CreateDirectory(params['tmp_dir']) == 1:
@@ -316,6 +463,7 @@ if __name__=='__main__':
     output_files = [os.path.join(params['tmp_dir'], os.path.basename(os.path.splitext(file)[0]) + '.faa') for file in input_files]
     io_map = {input_files[i]:output_files[i] for i in range(len(input_files))}
 
+    ##==============================================================================================##
     logging.info('[1]')
     logging.info('Detecting vORFs in multithreading')
     with Pool(params['num_threads']) as p1:
@@ -329,10 +477,14 @@ if __name__=='__main__':
         logging.error('No vORFs were found / merged')
         shutil.rmtree(params['tmp_dir'])
         sys.exit(1)
+
+    ##==============================================================================================##
     logging.info('[2]')
-    logging.info('Aligning virus-specific markers to your vORFS in multithreading (Note: This part is faster with more threads)')
+    logging.info('Aligning virus-specific markers to your vORFs in multithreading (Note: This part is faster with more threads)')
     run_mmseqs(params['merged_orfs'])
 
+
+    ##==============================================================================================##
     logging.info('[3]')
     logging.info('Generating queries file with the unordered collection of sets (matched virus-specific markers)')
     m8 = m8_reader(params['mmseqs_output'])
@@ -347,19 +499,30 @@ if __name__=='__main__':
     #with open(os.path.join(params['output_dir'], 'queries.pkl'), 'wb') as f:
     #    pickle.dump(queries, f)
 
+
+    ##==============================================================================================##
     logging.info('[4]')
     logging.info('Loading database, getting ready to search')
     with open(params['database_file'], 'rb') as hndl:
         database = pickle.load(hndl)
 
+    ## Store reference vORFs count
+    database_vORFs_content = {}
+    for key, value in database.items():
+        vORFs = len(value[0])
+        database_vORFs_content[key] = vORFs
+
+
     ## We also measure the actual search wall-clock time execution
     before = time.time()
 
+
+    ##==============================================================================================##
     logging.info('[5]')
     logging.info('Running virus search in multithreading')
 
     if params['with_replacement']:
-        logging.info('Replacement option active: note that this is meaningful when the query filenames are drawn from the database sequences!')
+        logging.info('Replacement option active: will skip the first best-scoring database entry')
         with Pool(params['num_threads']) as p1:
                 search_results = p1.map(find_one_virus_replacement, [key for key in queries.keys()] )
     else:
@@ -368,25 +531,37 @@ if __name__=='__main__':
 
     after = time.time()
 
+
+    ##==============================================================================================##
     logging.info('[6]')
-    logging.info(f'Writing results to disk at {params["results_file"]}')
+    logging.info(f'Pooling results, will write to file: {params["results_file"]}')
     with open(params['results_file'], 'w') as hndl:
-        #print('id,Realm,Kingdom,Phylum,Class,Order,Family,Genus,Species,gc_delta,score,tie_score,n_ties', end='\n', file=hndl)
-        print('id,Realm,Kingdom,Phylum,Class,Order,Family,gc_delta,score,tie_score,n_ties', end='\n', file=hndl)
+        print('id,Realm,Kingdom,Phylum,Class,Order,Family,gc_delta,score,tie_score,n_ties,query_vORFs_count,refnc_vORFs_count,pass_confidence_filter', end='\n', file=hndl)
         for search_result in search_results:
-            virus_id, chosen, score, ties = search_result
-            if not chosen:
+            if not search_result:
                 continue
-            tie_score = get_tie_score(ties)
-            lineage = chosen.split(';')
-            print(f"{virus_id},{','.join(lineage)},{score:3.3f},{tie_score:3.3f},{len(ties)-1}", end='\n', file=hndl)
+            virus_id, taxonomy, gc_delta, max_score, tie_score, number_of_ties, query_vORFs_count, refnc_vORFs_count, pass_confidence_filter = search_result
+            
+            lineage = taxonomy.split(';')
+            print(f"{virus_id},{','.join(lineage)},{gc_delta:3.3f},{max_score:3.3f},{tie_score:3.3f},{number_of_ties:3.3f},{query_vORFs_count},{refnc_vORFs_count},{pass_confidence_filter}",end='\n',file=hndl)
     results = pd.read_csv(params['results_file'])
     if len(results) == 0:
         logging.error(f'Search took {after-before}s. No viruses found. Was the input correct?')
     else:
         logging.info(f'Search took {after-before:3.3}s. Taxonomy for n={len(results)} written to file. Removing temporary directory and exiting.')
+
     results = results.sort_values(by='id')
     results.to_csv(params['results_file'], index=False)
+    if params['virus_by_virus']:
+        merged_part_files = {}
+        part_files = glob.glob(params['tmp_dir']+'/*.part')
+        for part_file in part_files:
+            part_dict = json.load(open(part_file))
+            key = next(iter(part_dict))
+            values = part_dict[key]
+            merged_part_files[key] = values
+        with open(params['virus_by_virus_file'], 'w') as hndl:
+            json.dump(merged_part_files, hndl, indent=4)
     shutil.rmtree(params['tmp_dir'])
 
-    sys.stdout.write(f'\nThank you for using Virgo. If you intend to use this program in your work, please cite our paper! \n{__citation__}\n')
+    plain_logger.info(f'\nThank you for using Virgo. If you intend to use this program in your work, please cite our paper! \n{__citation__}\n')
