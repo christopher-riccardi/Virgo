@@ -13,6 +13,7 @@
 
 - [Virgo](#virgo)
     - [Overview](#overview)
+  - [](#)
   - [Table of Contents](#table-of-contents)
   - [Features](#features)
   - [Installation](#installation)
@@ -66,7 +67,7 @@ This will ensure that all necessary tools and libraries are installed and ready 
 Virgo classifies the viral sequences in FASTA format present in a user-defined folder using information from a database. There are three essential, required arguments:
 
    ```bash
-   python virgo.py [-h] -i INPUT -o OUTPUT -d DATA [-t NUM_THREADS] [--with_replacement] [--no_gc] [--version]
+   python virgo.py [-h] -i INPUT -o OUTPUT -d DATA [-t NUM_THREADS] [--with-replacement] [--no_gc] [--version]
    ```
 
 #### Input
@@ -91,24 +92,24 @@ Several steps are taken care of behind the scenes, and Virgo greatly benefits fr
 ### Example  
 You can test Virgo on the viruses distributed with this repository, under `test/input'. This testing set is composed of 7 sequences drawn from the database itself. To make things interesting, you can run Virgo using the ```--with_replacement``` flag. This will make Virgo skip _self_ entries and try to infer the taxonomic lineage based on incomplete information. For this set of data, you will still obtain a 100% accuracy at the family level prediction.
    ```bash
-   python src/virgo.py -i tests/data/input/ -o output -d VMR_MSL39_v1/ -t 16 --with_replacement
+   python src/virgo.py -i tests/data/input/ -o output -d VMR_MSL39_v1/ -t 16 --with-replacement
    ```
-Virgo outputs a table containing each query's file name, the taxonomic lineage, the G+C content difference between the query and the most similar entry, the bidirectional subsethood score (we'll call it _score_ from now on), the tie score and the absolute number of ties. The latter corresponds to the absolute number of other entries with the same score for that specific ICTV release.
-The tie score, instead, reflects the diversity of families that are present in the tied pool. A tie score of 1 indicates that, regardless of the number of ties, only one family taxon was attributed -- a tie score of 0.5 indicates that _two_ families share the same score, and that the G+C content was used to guide the selection of the most probable database viruses from which to borrow the taxonomic lineage. 
+Virgo outputs a table containing each query's file name, the taxonomic lineage, the G+C content difference between the query and the most similar entry, the bidirectional subsethood score (we'll call it _score_ from now on), the tie score, the absolute number of ties, the number of vORF in the query, the number of vORF in the most similar reference, and a pass_confidence_filter flag. The pass_confidence_filter column indicates whether the prediction meets the confidence threshold defined in the paper: 1 for passing, and 0 for not passing. The absolute number of ties corresponds to the absolute number of other entries with the same score for that specific ICTV release.
+The tie score, instead, reflects the diversity of families that are present in the tied pool. A tie score of 1 indicates that, regardless of the number of ties, only one family taxon was attributed -- a tie score of 0.5 indicates that _two_ families share the same score, and that the G+C content was used to guide the selection of the most probable database viruses from which to borrow the taxonomic lineage.
 We provide the table with the expected results of the above command at `tests/data/expected_results.csv'. To inspect this table using python, you can use the following commands:
 
 ```{bash}
 >>> import pandas as pd
 >>> vf = pd.read_csv('tests/data/expected_results.csv')
 >>> vf
-                     id          Realm         Kingdom            Phylum             Class             Order             Family  gc_delta  score  tie_score  n_ties
-0  sort_12379_1_8_14452      Riboviria   Orthornavirae   Negarnaviricota   Insthoviricetes   Articulavirales   Orthomyxoviridae    0.0441  1.000      1.000       0
-1  sort_12607_4_1_29274      Riboviria   Orthornavirae      Pisuviricota   Pisoniviricetes       Nidovirales      Coronaviridae    0.0067  0.923      1.000       2
-2    sort_14239_1_1_996            NaN             NaN               NaN               NaN               NaN  Alphasatellitidae    0.0010  1.000      0.143      38
-3    sort_5207_1_1_7961   Monodnaviria    Shotokuvirae     Cossaviricota   Papovaviricetes  Zurhausenvirales   Papillomaviridae    0.0883  1.000      1.000       2
-4    sort_608_1_1_41268  Duplodnaviria  Heunggongvirae       Uroviricota    Caudoviricetes               NaN  Autographiviridae    0.0030  0.882      1.000       0
-5    sort_6402_1_1_2778   Monodnaviria    Shotokuvirae  Cressdnaviricota  Repensiviricetes    Geplafuvirales      Geminiviridae    0.0015  1.000      1.000      18
-6  sort_7279_1_10_17910      Riboviria   Orthornavirae  Duplornaviricota  Resentoviricetes        Reovirales     Sedoreoviridae    0.0175  1.000      1.000       4
+                     id          Realm         Kingdom            Phylum             Class             Order             Family  gc_delta  score  tie_score  n_ties  query_vORFs_count refnc_vORFs_count  pass_confidence_filter
+0  sort_12379_1_8_14452      Riboviria   Orthornavirae   Negarnaviricota   Insthoviricetes   Articulavirales   Orthomyxoviridae     0.044  1.000      1.000     1.0                  2                 2                       1
+1  sort_12607_4_1_29274      Riboviria   Orthornavirae      Pisuviricota   Pisoniviricetes       Nidovirales      Coronaviridae     0.007  0.923      1.000     1.0                  7                 6                       1
+2    sort_14239_1_1_996            NaN             NaN               NaN               NaN               NaN  Alphasatellitidae     0.000  1.000      0.143     7.0                  1                 1                       0
+3    sort_5207_1_1_7961   Monodnaviria    Shotokuvirae     Cossaviricota   Papovaviricetes  Zurhausenvirales   Papillomaviridae     0.000  1.000      1.000     1.0                  6                 6                       1
+4    sort_608_1_1_41268  Duplodnaviria  Heunggongvirae       Uroviricota    Caudoviricetes               NaN  Autographiviridae     0.003  0.882      1.000     1.0                 34                33                       1
+5    sort_6402_1_1_2778   Monodnaviria    Shotokuvirae  Cressdnaviricota  Repensiviricetes    Geplafuvirales      Geminiviridae     0.001  1.000      1.000     1.0                  2                 2                       1
+6  sort_7279_1_10_17910      Riboviria   Orthornavirae  Duplornaviricota  Resentoviricetes        Reovirales     Sedoreoviridae     0.000  1.000      1.000     1.0                  9                 9                       1
 ```
 Notice how most of the taxonomic lineage for the virus belonging to the _Alphasatellitidae_ family is missing (NaN values). This is expected, and consistent with the taxonomic classification ratified by the ICTV. Notice also how the virus attributed to the family _Autographiviridae_ does not have an order assigned. This is also consistent with the current restructuring that is happening for bacteriophages. Finally, we point out the tie score and number of ties (second to last and last column) that arent't always correlated.
 .
