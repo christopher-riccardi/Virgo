@@ -133,7 +133,7 @@ Having these internals in mind, there are few steps to follow in order to genera
   -t NUM_THREADS, --num_threads NUM_THREADS
                         Number of threads to use for multiprocessing
   ```
-The final result is an output directory with the freshly bundled database, and you will be ready to use Virgo with a specific version of the VMR.
+The final result is an output directory with the freshly bundled database, and you will be ready to use Virgo with a specific version of the VMR
 
 ### Troubleshooting  
 If you found a bug or mistake in this project, we would like to know about it. Before you send us the bug report though, please check the following:
