@@ -96,6 +96,7 @@ You can test Virgo on the viruses distributed with this repository, under `test/
    ```
 Virgo outputs a table containing each query's file name, the taxonomic lineage, the G+C content difference between the query and the most similar entry, the bidirectional subsethood score (we'll call it _score_ from now on), the tie score, the absolute number of ties, the number of vORF in the query, the number of vORF in the most similar reference, and a pass_confidence_filter flag. The pass_confidence_filter column indicates whether the prediction meets the confidence threshold defined in the paper: 1 for passing, and 0 for not passing. The absolute number of ties corresponds to the absolute number of other entries with the same score for that specific ICTV release.
 The tie score, instead, reflects the diversity of families that are present in the tied pool. A tie score of 1 indicates that, regardless of the number of ties, only one family taxon was attributed -- a tie score of 0.5 indicates that _two_ families share the same score, and that the G+C content was used to guide the selection of the most probable database viruses from which to borrow the taxonomic lineage.
+
 We provide the table with the expected results of the above command at `tests/data/expected_results.csv'. To inspect this table using python, you can use the following commands:
 
 ```{bash}
@@ -111,8 +112,8 @@ We provide the table with the expected results of the above command at `tests/da
 5    sort_6402_1_1_2778   Monodnaviria    Shotokuvirae  Cressdnaviricota  Repensiviricetes    Geplafuvirales      Geminiviridae     0.001  1.000      1.000     1.0                  2                 2                       1
 6  sort_7279_1_10_17910      Riboviria   Orthornavirae  Duplornaviricota  Resentoviricetes        Reovirales     Sedoreoviridae     0.000  1.000      1.000     1.0                  9                 9                       1
 ```
-Notice how most of the taxonomic lineage for the virus belonging to the _Alphasatellitidae_ family is missing (NaN values). This is expected, and consistent with the taxonomic classification ratified by the ICTV. Notice also how the virus attributed to the family _Autographiviridae_ does not have an order assigned. This is also consistent with the current restructuring that is happening for bacteriophages. Finally, we point out the tie score and number of ties (second to last and last column) that arent't always correlated.
-.
+Notice how most of the taxonomic lineage for the virus belonging to the _Alphasatellitidae_ family is missing (NaN values). This is expected, and consistent with the taxonomic classification ratified by the ICTV. Notice also how the virus attributed to the family _Autographiviridae_ does not have an order assigned. This is also consistent with the current restructuring that is happening for bacteriophages. Finally, we print the tie score and number of ties (that aren't always correlated), along with other information about the prediction.
+
 ### Building the Database  
 The data folder required by Virgo through the command line option ```-d``` is a bundle of 9 files. 8/9 are the MMSeqs2 database files relative to the virus-specific markers, and these we redistribute under CC 4.0 by Antonio Camargo, via Zenodo. The 9th file is a pickle database file that contains the pre-calculated unordered collections of matched markers for a specific version of the ICTV. For example, the bundle **VMR_MSL39_v1/** will contain a file named `database.pkl' which is the data structure with taxonomic information relative to the ICTV-ratified taxa released in version #39 as well as the compressed sets representations of the virus-specific markers matched in all viruses for that specific ICTV release. 
 
