@@ -90,7 +90,7 @@ Optionally, you may build your own following the instructions listed [here](#bui
 Several steps are taken care of behind the scenes, and Virgo greatly benefits from multithreading. We recommend running Virgo using the ```-t``` flag, and strongly advise to read [our paper]() to understand the overall classification engine.
 
 ### Example  
-You can test Virgo on the viruses distributed with this repository, under `test/input'. This testing set is composed of 7 sequences drawn from the database itself. To make things interesting, you can run Virgo using the ```--with_replacement``` flag. This will make Virgo skip _self_ entries and try to infer the taxonomic lineage based on incomplete information. For this set of data, you will still obtain a 100% accuracy at the family level prediction.
+You can test Virgo on the viruses distributed with this repository, under `test/input'. This testing set is composed of 7 sequences drawn from the database itself. To make things interesting, you can run Virgo using the ```--with-replacement``` flag. This will make Virgo skip _self_ entries and try to infer the taxonomic lineage based on incomplete information. For this set of data, you will still obtain a 100% accuracy at the family level prediction.
    ```bash
    python src/virgo.py -i tests/data/input/ -o output -d VMR_MSL39_v1/ -t 16 --with-replacement
    ```
