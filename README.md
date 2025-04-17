@@ -67,7 +67,7 @@ This will ensure that all necessary tools and libraries are installed and ready 
 Virgo classifies the viral sequences in FASTA format present in a user-defined folder using information from a database. There are three essential, required arguments:
 
    ```bash
-   python virgo.py [-h] -i INPUT -o OUTPUT -d DATA [-t NUM_THREADS] [--with-replacement] [--no_gc] [--version]
+   python virgo.py [-h] -i INPUT -o OUTPUT -d DATA [-t NUM_THREADS] [--with-replacement] [--no_gc] [--min_score] [--drop-ties] [--virus-by-virus] [--version]
    ```
 
 #### Input
