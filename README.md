@@ -134,6 +134,8 @@ Having these internals in mind, there are few steps to follow in order to genera
   ```
 The final result is an output directory with the freshly bundled database, and you will be ready to use Virgo with a specific version of the VMR.
 
+Prebuilt Virgo databases for all ICTV versions are available for download via this [link](https://drive.google.com/drive/u/0/folders/1fUnYjDS032cuenEzN3K7RArV55KCo8eD)
+
 ### Troubleshooting  
 If you found a bug or mistake in this project, we would like to know about it. Before you send us the bug report though, please check the following:
   1. Are you using the latest version? The bug you found may already have been fixed.
